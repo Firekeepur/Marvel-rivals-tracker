@@ -1,0 +1,16 @@
+{
+  "name": "marvel-rivals-frontend",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "next build",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "lint": "echo \"(lint disabled)\""
+  },
+  "dependencies": {
+    "next": "14.2.5",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "swr": "2.2.5"
+  }
+}

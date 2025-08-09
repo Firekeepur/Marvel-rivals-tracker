@@ -1,0 +1,27 @@
+# Node
+node_modules/
+npm-debug.log*
+dist/
+.next/
+out/
+coverage/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.ipynb_checkpoints
+
+# Local env & secrets
+api/.env
+marvel-rivals/api/.env
+marvel-rivals/frontend/.env.local
+marvel-rivals/frontend/.env*
+*.pem
+
+# PM2/runtime
+.pids/
+logs/
+*.pid
+.DS_Store

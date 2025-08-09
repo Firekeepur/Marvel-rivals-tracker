@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: ../docker/Dockerfile.api
+    env_file: .env
+    ports:
+      - "4000:4000"
+    networks: [appnet]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/Dockerfile.frontend
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks: [appnet]
+
+  jobs:
+    build:
+      context: ./jobs
+      dockerfile: ../docker/Dockerfile.jobs
+    env_file: .env
+    # run manually with: docker compose run --rm jobs
+    networks: [appnet]
+
+networks:
+  appnet:
+    driver: bridge
+
