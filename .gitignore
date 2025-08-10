@@ -43,3 +43,10 @@ coverage/
 # OS/editor
 .DS_Store
 *.swp
+# Ignore local Node binaries
+.nvm/
+node_modules/
+
+# Local node + binaries
+.nvm/
+node_modules/
