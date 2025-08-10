@@ -25,3 +25,21 @@ marvel-rivals/frontend/.env*
 logs/
 *.pid
 .DS_Store
+# local/dev stuff
+.nvm/
+node_modules/
+.pnpm-store/
+.cache/
+*.log
+
+# build outputs
+dist/
+build/
+.next/
+.out/
+.turbo/
+coverage/
+
+# OS/editor
+.DS_Store
+*.swp
