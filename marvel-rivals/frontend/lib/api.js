@@ -1,8 +1,8 @@
 // ---------- Environment helpers ----------
 const S3_BASE =
   (process.env.NEXT_PUBLIC_S3_BASE_URL || "").replace(/\/+$/, ""); // trim trailing slash
-const S3_LB_BASE    = process.env.S3_LB_BASE || "data/leaderboards";
-const S3_LB_SEASON  = process.env.S3_LB_SEASON || "current/season_3";
+const S3_LB_BASE    = process.env.S3_LB_BASE || "leaderboards";
+const S3_LB_SEASON  = process.env.S3_LB_SEASON || "current/season_3.5";
 const PATHS = {
   heroes: process.env.S3_META_HEROES,    // e.g. "data/heroes/heroes.json"
   maps: process.env.S3_META_MAPS,        // e.g. "data/maps/maps.json"
@@ -45,7 +45,6 @@ export async function getPatchNotes() {
 export function getS3ImageUrl(relativePath) {
   return s3Url(relativePath);
 }
-
 // ---------- Leaderboards (internal API) ----------
 
 export async function fetchLeaderboards({
@@ -55,7 +54,7 @@ export async function fetchLeaderboards({
   version = "season_3.5",
 } = {}) {
   // NOTE: the file extension must be .json (NOT .jso)
-  const path = `data/leaderboards/${type}/${season}/${version}/${device}.json`;
+  const path = `leaderboards/${type}/${season}/${version}/${device}.json`;
   const url = `${S3_BASE}/${path}`;
   return fetchJSON(url);
 }

@@ -1,75 +1,3 @@
-  const [pick, setPick] = useState({ season:'current', device:'pc' });
-  const [lb, setLb] = useState(null);
-
-  useEffect(()=>{ getOptions().then(setOpts).catch(()=>{}); }, []);
-  useEffect(()=>{
-    setLb(null);
-    getPlayerLeaderboard(pick).then(setLb).catch(e=>setLb({ error:String(e) }));
-  }, [pick.season, pick.device]);
-
-  return (
-    <div className="grid" style={{ gridTemplateColumns:'1fr', gap:16 }}>
-      <div className="section">
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ fontWeight:800 }}>Player Leaderboard</div>
-          <SeasonPlatformPicker seasons={opts.seasons} platforms={opts.platforms} value={pick} onChange={setPick} />
-        </div>
-      </div>
-      <div className="section">
-        <LeaderboardTable data={lb} />
-      </div>
-    </div>
-  );
-}
-EOF
-
-cat > "pages/heroes/[id].js" <<'EOF'
-import { useEffect, useState } from 'react';
-import { getOptions, getPlayerLeaderboard } from '../lib/api';
-import SeasonPlatformPicker from '../components/SeasonPlatformPicker';
-import LeaderboardTable from '../components/LeaderboardTable';
-
-export default function Leaderboards() {
-  const [opts, setOpts] = useState({ seasons:['current'], platforms:['pc','ps','xbox'] });
-  const [pick, setPick] = useState({ season:'current', device:'pc' });
-  const [lb, setLb] = useState(null);
-
-  useEffect(()=>{ getOptions().then(setOpts).catch(()=>{}); }, []);
-  useEffect(()=>{
-    setLb(null);
-    getPlayerLeaderboard(pick).then(setLb).catch(e=>setLb({ error:String(e) }));
-  }, [pick.season, pick.device]);
-
-  return (
-    <div className="grid" style={{ gridTemplateColumns:'1fr', gap:16 }}>
-      <div className="section">
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ fontWeight:800 }}>Player Leaderboard</div>
-          <SeasonPlatformPicker seasons={opts.seasons} platforms={opts.platforms} value={pick} onChange={setPick} />
-        </div>
-      </div>
-      <div className="section">
-        <LeaderboardTable data={lb} />
-      </div>
-    </div>
-  );
-}
-EOF
-
-mkdir -p pages/heroes
-nano "pages/heroes/[id].js"
-cat > pages/player.js <<'EOF'
-import { useEffect, useState } from 'react';
-import { getOptions, findPlayer, getPredictionsForPlayer } from '../lib/api';
-import SeasonPlatformPicker from '../components/SeasonPlatformPicker';
-
-export default function Player() {
-  const [opts, setOpts] = useState({ seasons:['current'], platforms:['pc','ps','xbox'] });
-  const [pick, setPick] = useState({ season:'current', device:'pc' });
-  const [query, setQuery] = useState('');
-  const [player, setPlayer] = useState(null);
-  const [pred, setPred] = useState(null);
-
   useEffect(()=>{ getOptions().then(setOpts).catch(()=>{}); }, []);
 
   async function doSearch() {
@@ -998,3 +926,75 @@ ls
 nano lib/api.js
 nano pages/leaderboards/index.jsx 
 npm run dev
+cd marvel-rivals/
+ls
+cd frontend/
+ls
+cd lib
+ls
+cd ..
+nano jsconfig.json
+npm run dev
+nano pages/leaderboards/index.jsx 
+cd ..
+ls
+cd ..
+ls
+cd marvel_rivals_stats/scripts/
+ls
+nano upload_leaderboards_and_hero_stats.py 
+python3 upload_leaderboards_and_hero_stats.py 
+nano upload_leaderboards_and_hero_stats.py 
+python3 upload_leaderboards_and_hero_stats.py 
+nano upload_leaderboards_and_hero_stats.py 
+python3 upload_leaderboards_and_hero_stats.py 
+nano upload_leaderboards_and_hero_stats.py 
+python3 upload_leaderboards_and_hero_stats.py 
+cd ..
+git branch
+git add --all
+git commit -m "Force update to main branch with latest changes"
+git push origin main --force
+git . add
+git add .
+ls
+git push origin main --force
+git push marvel-rivals
+git push
+ls
+cd marvel-rivals/
+ld
+ls
+cd api
+ls
+cd node_modules/
+ls
+cd ..
+ls
+cd frontend/
+ls
+nano lib/api.js
+ls
+cd pages/
+ls
+nano index.js 
+cd leaderboards/
+ls
+nano index.jsx 
+cd ..
+npm run dev
+sls
+ls
+nano lib/api.js
+npm run dev
+nano lib/api.js
+npm run dev
+ls
+nano lib/api.json
+nano lib/api.js
+ls
+cd pages/
+ls
+nano index.js 
+cd ..
+nano lib/api.js

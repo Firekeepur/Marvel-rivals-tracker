@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getOptions, findPlayer, getPredictionsForPlayer } from '../lib/api';
+import { findPlayer, getPredictionsForPlayer } from '../lib/api';
 import SeasonPlatformPicker from '../components/SeasonPlatformPicker';
 
 export default function Player() {
@@ -8,8 +8,6 @@ export default function Player() {
   const [query, setQuery] = useState('');
   const [player, setPlayer] = useState(null);
   const [pred, setPred] = useState(null);
-
-  useEffect(()=>{ getOptions().then(setOpts).catch(()=>{}); }, []);
 
   async function doSearch() {
     setPlayer(null); setPred(null);
