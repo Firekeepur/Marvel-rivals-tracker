@@ -12,7 +12,7 @@ if not BUCKET_NAME:
     raise EnvironmentError("Missing required environment variable: BUCKET_NAME")
 
 S3_BASE_PATH = 'leaderboards'
-CURRENT_SEASON = '3'
+CURRENT_SEASON = '3.5'
 DEVICES = ['pc', 'psn', 'xbox']
 PLAYER_LEADERBOARD_URL = 'https://marvelrivalsapi.com/api/v2/players/leaderboard'
 HERO_STATS_URL = 'https://marvelrivalsapi.com/api/v1/heroes/hero/{hero_id}/stats'
@@ -73,7 +73,7 @@ def load_hero_ids():
 
 # --------- Sync Logic ---------
 def sync_player_leaderboard(season, is_current):
-    limit = 50 if is_current else 100
+    limit = 50 if is_current else 100  # keeping your existing limits
     for device in DEVICES:
         key = f"{S3_BASE_PATH}/player/{'current' if is_current else 'past'}/season_{season}/{device}.json"
         if not is_current and s3_exists(key):
@@ -81,7 +81,9 @@ def sync_player_leaderboard(season, is_current):
             continue
 
         logging.info(f"📥 Fetching player leaderboard: season={season}, device={device}")
-        params = {'season': season, 'device': device, 'limit': limit}
+        params = {'device': device, 'limit': limit}
+        if not is_current:
+            params['season'] = season  # omit for current
         data = fetch_json(PLAYER_LEADERBOARD_URL, params=params)
         if data:
             save_to_s3(data, key)
@@ -96,13 +98,83 @@ def sync_hero_stats(season, is_current, hero_ids):
                 continue
 
             url = HERO_STATS_URL.format(hero_id=hero_id)
-            params = {'season': season, 'device': device}
+            params = {'device': device}
+            if not is_current:
+                params['season'] = season  # omit for current
+            logging.info(f"📥 Fetching hero stats: season={season}, device={device}, hero_id={hero_id}")
+            data = fetch_json(url, params=params)
+            if data:
+                save_to_s3(data, key)
+            time.sleep(1)
+def sync_player_leaderboard(season, is_current):
+    limit = 50 if is_current else 100  # keeping your existing limits
+    for device in DEVICES:
+        key = f"{S3_BASE_PATH}/player/{'current' if is_current else 'past'}/season_{season}/{device}.json"
+        if not is_current and s3_exists(key):
+            logging.info(f"⏭️ Skipping existing past leaderboard: {key}")
+            continue
+
+        logging.info(f"📥 Fetching player leaderboard: season={season}, device={device}")
+        params = {'device': device, 'limit': limit}
+        if not is_current:
+            params['season'] = season  # omit for current
+        data = fetch_json(PLAYER_LEADERBOARD_URL, params=params)
+        if data:
+            save_to_s3(data, key)
+
+
+def sync_hero_stats(season, is_current, hero_ids):
+    for device in DEVICES:
+        for hero_id in hero_ids:
+            key = f"{S3_BASE_PATH}/heroes/stats/{'current' if is_current else 'past'}/season_{season}/{device}/hero_{hero_id}.json"
+            if not is_current and s3_exists(key):
+                logging.info(f"⏭️ Skipping existing past hero stats: {key}")
+                continue
+
+            url = HERO_STATS_URL.format(hero_id=hero_id)
+            params = {'device': device}
+            if not is_current:
+                params['season'] = season  # omit for current
             logging.info(f"📥 Fetching hero stats: season={season}, device={device}, hero_id={hero_id}")
             data = fetch_json(url, params=params)
             if data:
                 save_to_s3(data, key)
             time.sleep(1)
 
+def sync_player_leaderboard(season, is_current):
+    limit = 50 if is_current else 100  # keeping your existing limits
+    for device in DEVICES:
+        key = f"{S3_BASE_PATH}/player/{'current' if is_current else 'past'}/season_{season}/{device}.json"
+        if not is_current and s3_exists(key):
+            logging.info(f"⏭️ Skipping existing past leaderboard: {key}")
+            continue
+
+        logging.info(f"📥 Fetching player leaderboard: season={season}, device={device}")
+        params = {'device': device, 'limit': limit}
+        if not is_current:
+            params['season'] = season  # omit for current
+        data = fetch_json(PLAYER_LEADERBOARD_URL, params=params)
+        if data:
+            save_to_s3(data, key)
+
+
+def sync_hero_stats(season, is_current, hero_ids):
+    for device in DEVICES:
+        for hero_id in hero_ids:
+            key = f"{S3_BASE_PATH}/heroes/stats/{'current' if is_current else 'past'}/season_{season}/{device}/hero_{hero_id}.json"
+            if not is_current and s3_exists(key):
+                logging.info(f"⏭️ Skipping existing past hero stats: {key}")
+                continue
+
+            url = HERO_STATS_URL.format(hero_id=hero_id)
+            params = {'device': device}
+            if not is_current:
+                params['season'] = season  # omit for current
+            logging.info(f"📥 Fetching hero stats: season={season}, device={device}, hero_id={hero_id}")
+            data = fetch_json(url, params=params)
+            if data:
+                save_to_s3(data, key)
+            time.sleep(1)
 
 def sync_hero_leaderboard(season, is_current, hero_ids):
     for device in DEVICES:
@@ -113,13 +185,14 @@ def sync_hero_leaderboard(season, is_current, hero_ids):
                 continue
 
             url = HERO_LEADERBOARD_URL.format(hero_id=hero_id)
-            params = {'season': season, 'device': device}
+            params = {'device': device}
+            if not is_current:
+                params['season'] = season  # omit for current
             logging.info(f"📥 Fetching hero leaderboard: season={season}, device={device}, hero_id={hero_id}")
             data = fetch_json(url, params=params)
             if data:
                 save_to_s3(data, key)
             time.sleep(1)
-
 
 # --------- Entry Point ---------
 def run_sync():
@@ -132,7 +205,7 @@ def run_sync():
         return
 
     # Past Seasons
-    for season in ['0', '1', '1.5', '2', '2.5']:
+    for season in ['0', '1', '1.5', '2', '2.5', '3']:
         logging.info(f"🔁 Syncing past season {season} ...")
         sync_player_leaderboard(season, is_current=False)
         sync_hero_stats(season, is_current=False, hero_ids=hero_ids)

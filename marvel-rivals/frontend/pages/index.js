@@ -1,102 +1,40 @@
-import { useEffect, useMemo, useState } from 'react';
-import SeasonPlatformPicker from '../components/SeasonPlatformPicker';
-import LeaderboardTable from '../components/LeaderboardTable';
-import HeroStatsPanel from '../components/HeroStatsPanel';
-import PredictionsPanel from '../components/PredictionsPanel';
-import { API_BASE, getOptions, getPlayerLeaderboard, getHeroStats, findPlayer, getPredictionsForPlayer } from '../lib/api';
+import Link from 'next/link';
+import { getOptions, getHeroesMeta, getMapsMeta, getPatchNotes } from '../lib/api';
 
-export default function Home() {
-  const [opts, setOpts] = useState({ seasons: ['current'], platforms: ['pc', 'ps', 'xbox'] });
-  const [pick, setPick] = useState({ season: 'current', device: 'pc' });
-
-  const [lb, setLb] = useState(null);
-  const [heroId, setHeroId] = useState('');
-  const [heroStats, setHeroStats] = useState(null);
-
-  const [playerQuery, setPlayerQuery] = useState('');
-  const [player, setPlayer] = useState(null);
-  const [prediction, setPrediction] = useState(null);
-
-  useEffect(() => {
-    getOptions().then(setOpts).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    setLb(null);
-    getPlayerLeaderboard({ season: pick.season, device: pick.device })
-      .then(setLb)
-      .catch((e) => setLb({ error: e.message }));
-  }, [pick.season, pick.device]);
-
-  useEffect(() => {
-    if (!heroId) { setHeroStats(null); return; }
-    setHeroStats(null);
-    getHeroStats(heroId, { season: pick.season, device: pick.device })
-      .then(setHeroStats)
-      .catch((e) => setHeroStats({ error: e.message }));
-  }, [heroId, pick.season, pick.device]);
-
-  async function searchPlayer() {
-    setPlayer(null);
-    setPrediction(null);
-    try {
-      const p = await findPlayer(playerQuery, { season: pick.season });
-      setPlayer(p);
-      const pred = await getPredictionsForPlayer(p?.id || playerQuery);
-      setPrediction(pred);
-    } catch (e) {
-      setPlayer({ error: e.message });
-    }
-  }
-
+export default function Home({ peek }) {
   return (
-    <div className="container">
-      <header className="header">
-        <div><b>Marvel Rivals — Stats</b></div>
-        <div style={{ fontSize: 12, color: '#6b7280' }}>API: {API_BASE}</div>
-      </header>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <SeasonPlatformPicker
-          seasons={[ 'current', ...opts.seasons.filter(s => s !== 'current') ]}
-          platforms={opts.platforms}
-          value={pick}
-          onChange={setPick}
-        />
+    <div className="grid" style={{ gridTemplateColumns:'1fr', gap:16 }}>
+      <div className="section">
+        <div style={{ fontWeight:800, marginBottom:8 }}>Welcome</div>
+        <div>Browse heroes, maps, patch notes, leaderboards, and search players.</div>
       </div>
 
-      <div className="grid">
-        <div className="card">
-          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 700 }}>Player Leaderboard</div>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>Season: {pick.season} • {pick.device}</div>
-          </div>
-          {lb?.error ? <div style={{ color: 'crimson' }}>{lb.error}</div> : <LeaderboardTable data={lb} />}
-        </div>
-
-        <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Hero Stats</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input className="input" placeholder="Hero ID (e.g., 1011)" value={heroId} onChange={(e) => setHeroId(e.target.value)} />
-            <button className="button" disabled={!heroId} onClick={() => setHeroId(heroId)}>Load</button>
-          </div>
-          <HeroStatsPanel stats={heroStats} heroId={heroId} season={pick.season} device={pick.device} />
+      <div className="section">
+        <div style={{ fontWeight:700, marginBottom:8 }}>Quick Links</div>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          <Link className="button" href="/heroes">Heroes</Link>
+          <Link className="button" href="/maps">Maps</Link>
+          <Link className="button" href="/patch-notes">Patch Notes</Link>
+          <Link className="button" href="/leaderboards">Leaderboards</Link>
+          <Link className="button" href="/player">Player Search</Link>
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Player Search</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input className="input" placeholder="Player ID or username" value={playerQuery} onChange={(e) => setPlayerQuery(e.target.value)} />
-          <button className="button" onClick={searchPlayer} disabled={!playerQuery}>Search</button>
-        </div>
-        {player && (
-          <div style={{ marginTop: 12 }}>
-            <pre style={{ whiteSpace: 'pre-wrap', overflowX: 'auto' }}>{JSON.stringify(player, null, 2)}</pre>
-          </div>
-        )}
-        <PredictionsPanel prediction={prediction} />
+      <div className="section">
+        <div style={{ fontWeight:700, marginBottom:8 }}>Latest (peek)</div>
+        <pre style={{ whiteSpace:'pre-wrap', overflowX:'auto' }}>{JSON.stringify(peek, null, 2)}</pre>
       </div>
     </div>
   );
+}
+
+export async function getServerSideProps() {
+  try {
+    const [opts, heroes, maps, notes] = await Promise.all([
+      getOptions(), getHeroesMeta(), getMapsMeta(), getPatchNotes()
+    ]);
+    return { props: { peek: { seasons: opts.seasons?.slice(0,5), platforms: opts.platforms, heroesCount: (heroes?.length||0), mapsCount: (maps?.length||0), notesCount: (Array.isArray(notes)?notes.length:(notes?.notes||[]).length) } } };
+  } catch (e) {
+    return { props: { peek: { error: String(e) } } };
+  }
 }

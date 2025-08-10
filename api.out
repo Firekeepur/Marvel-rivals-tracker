@@ -1,0 +1,8 @@
+nohup: ignoring input
+API listening on 4000
+REQ GET /healthz
+REQ GET /healthz
+REQ GET /healthz
+REQ GET /meta/heroes
+REQ GET /players/leaderboard?season=1&device=pc
+REQ GET /heroes/1011/stats?season=1&device=pc
