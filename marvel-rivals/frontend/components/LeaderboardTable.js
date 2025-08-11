@@ -1,23 +1,29 @@
-export default function LeaderboardTable({ data }) {
-  if (!data) return <div>Loading…</div>;
-  if (data.error) return <div style={{ color: 'crimson' }}>{String(data.error)}</div>;
-
-  const rows = Array.isArray(data?.data) ? data.data : (data?.result || data?.rows || []);
-  if (!rows?.length) return <div>No data.</div>;
-
-  const cols = Object.keys(rows[0]).slice(0, 10);
+export default function LeaderboardTable({ rows = [], compact }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>{cols.map(c => <th key={c} style={{ textAlign:'left', borderBottom:'1px solid #eee', padding:8 }}>{c}</th>)}</tr>
+    <div className="overflow-hidden rounded-xl border border-neutral-800">
+      <table className="table-base">
+        <thead className="bg-neutral-900/60">
+          <tr>
+            <th className="th-base">#</th>
+            <th className="th-base">Player</th>
+            <th className="th-base">MMR</th>
+            <th className="th-base">Wins</th>
+            <th className="th-base">Win%</th>
+          </tr>
         </thead>
-        <tbody>
-          {rows.slice(0,100).map((r,i)=>(
-            <tr key={i} style={{ borderBottom:'1px solid #f5f5f5' }}>
-              {cols.map(c => <td key={c} style={{ padding:8 }}>{typeof r[c]==='object' ? JSON.stringify(r[c]) : String(r[c])}</td>)}
+        <tbody className="divide-y divide-neutral-800">
+          {rows.map((r, i) => (
+            <tr key={r.id || i} className="hover:bg-neutral-900/40">
+              <td className="td-base">{i + 1}</td>
+              <td className="td-base">{r.name || r.player || "—"}</td>
+              <td className="td-base">{r.mmr ?? "—"}</td>
+              <td className="td-base">{r.wins ?? "—"}</td>
+              <td className="td-base">{r.winRate ? `${r.winRate}%` : "—"}</td>
             </tr>
           ))}
+          {!rows.length && (
+            <tr><td className="td-base text-neutral-400" colSpan={5}>No data.</td></tr>
+          )}
         </tbody>
       </table>
     </div>

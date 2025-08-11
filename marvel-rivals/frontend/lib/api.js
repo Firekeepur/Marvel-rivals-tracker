@@ -1,91 +1,145 @@
-// ---------- Environment helpers ----------
-const S3_BASE =
-  (process.env.NEXT_PUBLIC_S3_BASE_URL || "").replace(/\/+$/, ""); // trim trailing slash
-const S3_LB_BASE    = process.env.S3_LB_BASE || "leaderboards";
-const S3_LB_SEASON  = process.env.S3_LB_SEASON || "current/season_3.5";
+// frontend/lib/api.js
+
+// ---------- Env & constants ----------
+const S3_BASE = (process.env.NEXT_PUBLIC_S3_BASE_URL || "").replace(/\/+$/, "");
+if (!S3_BASE) {
+  throw new Error("Missing NEXT_PUBLIC_S3_BASE_URL");
+}
+
+// Defaults match your bucket contents
 const PATHS = {
-  heroes: process.env.S3_META_HEROES,    // e.g. "data/heroes/heroes.json"
-  maps: process.env.S3_META_MAPS,        // e.g. "data/maps/maps.json"
-  patchNotes: process.env.S3_META_PATCH, // e.g. "data/patch_notes/patch_notes.json"
+  heroes: process.env.S3_META_HEROES || "data/heroes/heroes.json",
+  maps: process.env.S3_META_MAPS || "data/maps/maps.json",
+  patchNotes:
+    process.env.S3_META_PATCH || "data/patch_notes/patch_notes.json",
 };
 
-// Internal API (your Node/Express or Docker service that serves leaderboards)
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000")
-  .replace(/\/+$/, "");
+// Devices & seasons based on your jobs script
+export const DEVICES = ["pc", "psn", "xbox"];
+export const PAST_SEASONS = ["0", "1", "1.5", "2", "2.5", "3"]; // all have data
+export const CURRENT_SEASON = process.env.NEXT_PUBLIC_SEASON || "3.5";
+export const ALL_SEASONS = [...PAST_SEASONS, CURRENT_SEASON];
 
-// ---------- Utilities ----------
-const s3Url = (path) => {
-  if (!S3_BASE) throw new Error("NEXT_PUBLIC_S3_BASE_URL (or _URI) is not set");
-  if (!path) throw new Error("S3 path is missing");
-  return `${S3_BASE}/${String(path).replace(/^\/+/, "")}`;
-};
+// ---------- Utils ----------
+const s3Url = (path) =>
+  `${S3_BASE}/${String(path).replace(/^\/+/, "").replace(/\/+$/, "")}`;
 
-async function fetchJSON(url) {
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+// ----- fetch helper: return null on 404 so UI can show "Not available" -----
+async function fetchJSONOrNull(url, init = {}) {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  if (res.status === 404) return null;            // <- S3 key not present yet
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+  }
   return res.json();
 }
-// ---------- S3 metadata ----------
-export async function getHeroesMeta() {
-  return fetchJSON(s3Url(PATHS.heroes));
+
+// keep strict version for metadata we expect to exist
+async function fetchJSON(url, init = {}) {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+  return res.json();
 }
 
-export async function getMapsMeta() {
-  return fetchJSON(s3Url(PATHS.maps));
-}
+const seasonPath = ({ current = true, season = CURRENT_SEASON } = {}) =>
+  `${current ? "current" : "past"}/season_${season}`;
+
+// Helpful for images in S3 (icons, costumes, etc.)
+export const getS3ImageUrl = (relativePath) => s3Url(relativePath);
+
+// ---------- S3 metadata ----------
+export const getHeroesMeta = () => fetchJSON(s3Url(PATHS.heroes));
+export const getMapsMeta = () => fetchJSON(s3Url(PATHS.maps));
 
 export async function getPatchNotes() {
-  // We now know the shape is:
-  // { total_patches: number, formatted_patches: Array<Note> }
-  const json = await fetchJSON(s3Url(PATHS.patchNotes), { cache: "no-store" });
+  // Your file shape: { total_patches, formatted_patches: [...] }
+  const json = await fetchJSON(s3Url(PATHS.patchNotes));
   return Array.isArray(json?.formatted_patches) ? json.formatted_patches : [];
 }
 
-// Helpful for images in S3 (icons, costumes, etc.)
-export function getS3ImageUrl(relativePath) {
-  return s3Url(relativePath);
+// ---------- Player leaderboards ----------
+/**
+ * Fetch the top player leaderboard for a device/season.
+ * S3 path produced by your jobs script:
+ * leaderboards/player/{current|past}/season_{N}/{device}.json
+ */
+export async function fetchPlayerLeaderboard({ device = "pc", season = CURRENT_SEASON, current = true } = {}) {
+  const path = `leaderboards/player/${seasonPath({ current, season })}/${device}.json`;
+  return fetchJSON(s3Url(path));
 }
-// ---------- Leaderboards (internal API) ----------
 
-export async function fetchLeaderboards({
-  type = "player",
+// ---------- Hero leaderboards & stats ----------
+/**
+ * Per-hero leaderboard (top players on that hero)
+ * leaderboards/heroes/leaderboard/{current|past}/season_{N}/{device}/hero_{ID}.json
+ */
+
+export async function fetchHeroLeaderboard({ heroId, device = "pc", season = CURRENT_SEASON, current = true } = {}) {
+  if (!heroId && heroId !== 0) throw new Error("heroId is required");
+  const path = `leaderboards/heroes/leaderboard/${seasonPath({ current, season })}/${device}/hero_${heroId}.json`;
+  return fetchJSONOrNull(s3Url(path));
+}
+
+/**
+ * Per-hero aggregated stats
+ * leaderboards/heroes/stats/{current|past}/season_{N}/{device}/hero_{ID}.json
+ */
+// ----- hero leaderboard (top players on a hero) — if empty, return null -----
+
+export async function fetchHeroStats({ heroId, device = "pc", season = CURRENT_SEASON, current = true } = {}) {
+  if (!heroId && heroId !== 0) throw new Error("heroId is required");
+  const path = `leaderboards/heroes/stats/${seasonPath({ current, season })}/${device}/hero_${heroId}.json`;
+  return fetchJSONOrNull(s3Url(path)); // null means "Not available"
+}
+
+export function heroStatsAvailable(data) {
+  if (!data) return false;                 // null → not available
+  if (Array.isArray(data) && data.length === 0) return false;
+  if (typeof data === "object" && Object.keys(data).length === 0) return false;
+  return true;
+}
+
+/**
+ * Convenience: fetch multiple heroes' stats at once.
+ */
+export async function fetchManyHeroStats({
+  heroIds = [],
   device = "pc",
-  season = "current",
-  version = "season_3.5",
+  season = CURRENT_SEASON,
+  current = true,
 } = {}) {
-  // NOTE: the file extension must be .json (NOT .jso)
-  const path = `leaderboards/${type}/${season}/${version}/${device}.json`;
-  const url = `${S3_BASE}/${path}`;
-  return fetchJSON(url);
+  const jobs = heroIds.map((id) =>
+    fetchHeroStats({ heroId: id, device, season, current }).then((data) => ({
+      heroId: id,
+      data,
+    }))
+  );
+  return Promise.allSettled(jobs).then((results) =>
+    results
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => r.value)
+  );
 }
 
-// Optional: hero stats (if referenced by your pages)
-export async function getHeroStats({
-  season,
-  device,
-  page = 1,
-  limit = 50,
+// ---------- Section helpers for your new homepage ----------
+export async function getHomeSections({
+  device = "pc",
+  season = CURRENT_SEASON,
+  current = true,
 } = {}) {
-  const params = new URLSearchParams();
-  if (season != null && season !== "") params.set("season", String(season));
-  if (device) params.set("device", device);
-  params.set("page", String(page));
-  params.set("limit", String(limit));
+  // Heroes, Skins, Maps, Leaderboards (top players)
+  const [heroes, maps, players] = await Promise.all([
+    getHeroesMeta(),
+    getMapsMeta(),
+    fetchPlayerLeaderboard({ device, season, current }),
+  ]);
 
-  const url = `${API_BASE}/leaderboards/heroes/stats?${params.toString()}`;
-  return fetchJSON(url, { cache: "no-store" });
-}
-
-// Alias: some pages import `getLeaderboards` (plural)
-export async function getLeaderboards(opts) {
-  return getPlayerLeaderboard(opts);
-}
-
-// ---------- External Marvel API passthrough (keep if used) ----------
-export const MARVEL_API_V1 = process.env.MARVEL_API_BASE_V1;
-export const MARVEL_API_V2 = process.env.MARVEL_API_BASE_V2;
-
-export async function fetchFromMarvelApi(path, opts = {}) {
-  if (!MARVEL_API_V2) throw new Error("MARVEL_API_BASE_V2 is not set");
-  return fetchJSON(`${MARVEL_API_V2}/${String(path).replace(/^\/+/, "")}`, opts);
+  return {
+    heroes, // from data/heroes/heroes.json
+    maps, // from data/maps/maps.json
+    // Skins: you only have images in images/costumes/* — no manifest yet.
+    // You can wire a manifest later; for now return empty list.
+    skins: [],
+    leaderboards: players,
+  };
 }

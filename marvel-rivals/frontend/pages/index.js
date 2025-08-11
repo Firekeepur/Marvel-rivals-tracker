@@ -1,40 +1,62 @@
-import Link from 'next/link';
-import { getOptions, getHeroesMeta, getMapsMeta, getPatchNotes } from '../lib/api';
+// pages/index.js
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useState } from "react";
+import AllHeroStatsGrid from "@/components/AllHeroStatsGrid";
 
-export default function Home({ peek }) {
+function QuickCard({ href, title, desc }) {
   return (
-    <div className="grid" style={{ gridTemplateColumns:'1fr', gap:16 }}>
-      <div className="section">
-        <div style={{ fontWeight:800, marginBottom:8 }}>Welcome</div>
-        <div>Browse heroes, maps, patch notes, leaderboards, and search players.</div>
+    <Link href={href} className="block">
+      <div className="rounded-lg bg-gray-900 hover:bg-gray-800 transition p-4 shadow border border-gray-800">
+        <div className="text-base font-semibold text-white">{title}</div>
+        <div className="text-sm text-gray-400 mt-1">{desc}</div>
       </div>
-
-      <div className="section">
-        <div style={{ fontWeight:700, marginBottom:8 }}>Quick Links</div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-          <Link className="button" href="/heroes">Heroes</Link>
-          <Link className="button" href="/maps">Maps</Link>
-          <Link className="button" href="/patch-notes">Patch Notes</Link>
-          <Link className="button" href="/leaderboards">Leaderboards</Link>
-          <Link className="button" href="/player">Player Search</Link>
-        </div>
-      </div>
-
-      <div className="section">
-        <div style={{ fontWeight:700, marginBottom:8 }}>Latest (peek)</div>
-        <pre style={{ whiteSpace:'pre-wrap', overflowX:'auto' }}>{JSON.stringify(peek, null, 2)}</pre>
-      </div>
-    </div>
+    </Link>
   );
 }
 
-export async function getServerSideProps() {
-  try {
-    const [opts, heroes, maps, notes] = await Promise.all([
-      getOptions(), getHeroesMeta(), getMapsMeta(), getPatchNotes()
-    ]);
-    return { props: { peek: { seasons: opts.seasons?.slice(0,5), platforms: opts.platforms, heroesCount: (heroes?.length||0), mapsCount: (maps?.length||0), notesCount: (Array.isArray(notes)?notes.length:(notes?.notes||[]).length) } } };
-  } catch (e) {
-    return { props: { peek: { error: String(e) } } };
-  }
+export default function Home() {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+
+  const onSearch = (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    router.push(`/player?name=${encodeURIComponent(query.trim())}`);
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-6 text-white">
+      {/* Top quick nav */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <QuickCard href="/heroes"       title="Heroes"       desc="Browse all heroes & abilities" />
+        <QuickCard href="/skins"        title="Skins"        desc="Cosmetics and variants" />
+        <QuickCard href="/maps"         title="Maps"         desc="Pool, lanes & rotations" />
+        <QuickCard href="/leaderboards" title="Leaderboards" desc="Top players by platform" />
+      </div>
+
+      {/* Player search */}
+      <div className="mt-6">
+        <form onSubmit={onSearch} className="flex gap-2">
+          <input
+            className="flex-1 rounded bg-gray-900 border border-gray-800 px-3 py-2 outline-none focus:border-gray-600"
+            placeholder="Search player (PC/PSN/XBOX username)"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="rounded bg-blue-600 hover:bg-blue-500 px-4 py-2 font-semibold"
+          >
+            Search
+          </button>
+        </form>
+      </div>
+
+      {/* All heroes stats grid */}
+      <div className="mt-6">
+        <AllHeroStatsGrid />
+      </div>
+    </div>
+  );
 }
