@@ -1,145 +1,128 @@
 // frontend/lib/api.js
+// Fetch straight from S3 (no /pages/api routes needed)
 
-// ---------- Env & constants ----------
 const S3_BASE = (process.env.NEXT_PUBLIC_S3_BASE_URL || "").replace(/\/+$/, "");
-if (!S3_BASE) {
-  throw new Error("Missing NEXT_PUBLIC_S3_BASE_URL");
+
+// --- helpers ---
+function seasonSegment(season) {
+  return season === "3.5" ? "current" : "past";
 }
 
-// Defaults match your bucket contents
-const PATHS = {
-  heroes: process.env.S3_META_HEROES || "data/heroes/heroes.json",
-  maps: process.env.S3_META_MAPS || "data/maps/maps.json",
-  patchNotes:
-    process.env.S3_META_PATCH || "data/patch_notes/patch_notes.json",
-};
-
-// Devices & seasons based on your jobs script
-export const DEVICES = ["pc", "psn", "xbox"];
-export const PAST_SEASONS = ["0", "1", "1.5", "2", "2.5", "3"]; // all have data
-export const CURRENT_SEASON = process.env.NEXT_PUBLIC_SEASON || "3.5";
-export const ALL_SEASONS = [...PAST_SEASONS, CURRENT_SEASON];
-
-// ---------- Utils ----------
-const s3Url = (path) =>
-  `${S3_BASE}/${String(path).replace(/^\/+/, "").replace(/\/+$/, "")}`;
-
-// ----- fetch helper: return null on 404 so UI can show "Not available" -----
-async function fetchJSONOrNull(url, init = {}) {
-  const res = await fetch(url, { cache: "no-store", ...init });
-  if (res.status === 404) return null;            // <- S3 key not present yet
-  if (!res.ok) {
-    throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+async function fetchJSON(url, { cache = "no-store" } = {}) {
+  try {
+    const res = await fetch(url, { cache });
+    if (!res.ok) return null; // 404/500 -> treat as missing
+    return await res.json();
+  } catch {
+    return null;
   }
-  return res.json();
 }
 
-// keep strict version for metadata we expect to exist
-async function fetchJSON(url, init = {}) {
-  const res = await fetch(url, { cache: "no-store", ...init });
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
-  return res.json();
+/**
+ * Limit concurrency so we don't spam S3 with 50+ parallel requests.
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
-const seasonPath = ({ current = true, season = CURRENT_SEASON } = {}) =>
-  `${current ? "current" : "past"}/season_${season}`;
+// --- core data ---
 
-// Helpful for images in S3 (icons, costumes, etc.)
-export const getS3ImageUrl = (relativePath) => s3Url(relativePath);
+export async function getHeroes() {
+  const url = `${S3_BASE}/data/heroes/heroes.json`;
+  return (await fetchJSON(url)) || [];
+}
 
-// ---------- S3 metadata ----------
-export const getHeroesMeta = () => fetchJSON(s3Url(PATHS.heroes));
-export const getMapsMeta = () => fetchJSON(s3Url(PATHS.maps));
+export async function getMaps() {
+  const url = `${S3_BASE}/data/maps/maps.json`;
+  return (await fetchJSON(url)) || [];
+}
 
 export async function getPatchNotes() {
-  // Your file shape: { total_patches, formatted_patches: [...] }
-  const json = await fetchJSON(s3Url(PATHS.patchNotes));
-  return Array.isArray(json?.formatted_patches) ? json.formatted_patches : [];
+  const url = `${S3_BASE}/data/patch_notes/patch_notes.json`;
+  return (await fetchJSON(url)) || [];
 }
 
-// ---------- Player leaderboards ----------
-/**
- * Fetch the top player leaderboard for a device/season.
- * S3 path produced by your jobs script:
- * leaderboards/player/{current|past}/season_{N}/{device}.json
- */
-export async function fetchPlayerLeaderboard({ device = "pc", season = CURRENT_SEASON, current = true } = {}) {
-  const path = `leaderboards/player/${seasonPath({ current, season })}/${device}.json`;
-  return fetchJSON(s3Url(path));
-}
+// --- leaderboards ---
 
-// ---------- Hero leaderboards & stats ----------
 /**
- * Per-hero leaderboard (top players on that hero)
- * leaderboards/heroes/leaderboard/{current|past}/season_{N}/{device}/hero_{ID}.json
+ * Player leaderboard (top players)
+ * S3: leaderboards/player/{current|past}/season_{season}/{platform}.json
  */
-
-export async function fetchHeroLeaderboard({ heroId, device = "pc", season = CURRENT_SEASON, current = true } = {}) {
-  if (!heroId && heroId !== 0) throw new Error("heroId is required");
-  const path = `leaderboards/heroes/leaderboard/${seasonPath({ current, season })}/${device}/hero_${heroId}.json`;
-  return fetchJSONOrNull(s3Url(path));
+export async function getPlayerLeaderboard({ season = "3.5", platform = "pc" } = {}) {
+  const seg = seasonSegment(season);
+  const url = `${S3_BASE}/leaderboards/player/${seg}/season_${season}/${platform}.json`;
+  const data = await fetchJSON(url);
+  return data || { entries: [], unavailable: !data, message: data ? undefined : "not available" };
 }
 
 /**
- * Per-hero aggregated stats
- * leaderboards/heroes/stats/{current|past}/season_{N}/{device}/hero_{ID}.json
+ * Hero leaderboard (top players for a specific hero)
+ * S3: leaderboards/heroes/leaderboard/{current|past}/season_{season}/{platform}/hero_{heroId}.json
  */
-// ----- hero leaderboard (top players on a hero) — if empty, return null -----
-
-export async function fetchHeroStats({ heroId, device = "pc", season = CURRENT_SEASON, current = true } = {}) {
-  if (!heroId && heroId !== 0) throw new Error("heroId is required");
-  const path = `leaderboards/heroes/stats/${seasonPath({ current, season })}/${device}/hero_${heroId}.json`;
-  return fetchJSONOrNull(s3Url(path)); // null means "Not available"
+export async function getHeroLeaderboard({ heroId, season = "3.5", platform = "pc" }) {
+  if (!heroId) throw new Error("heroId is required");
+  const seg = seasonSegment(season);
+  const url = `${S3_BASE}/leaderboards/heroes/leaderboard/${seg}/season_${season}/${platform}/hero_${heroId}.json`;
+  const data = await fetchJSON(url);
+  return data || { entries: [], unavailable: !data, message: "not available" };
 }
 
-export function heroStatsAvailable(data) {
-  if (!data) return false;                 // null → not available
-  if (Array.isArray(data) && data.length === 0) return false;
-  if (typeof data === "object" && Object.keys(data).length === 0) return false;
-  return true;
+// --- hero stats ---
+
+/**
+ * Single hero stats
+ * S3: leaderboards/heroes/stats/{current|past}/season_{season}/{platform}/hero_{heroId}.json
+ */
+export async function getHeroStatsForHero({ heroId, season = "3.5", platform = "pc" }) {
+  if (!heroId) throw new Error("heroId is required");
+  const seg = seasonSegment(season);
+  const url = `${S3_BASE}/leaderboards/heroes/stats/${seg}/season_${season}/${platform}/hero_${heroId}.json`;
+  const data = await fetchJSON(url);
+  // When 3.5 isn’t available yet, return a shape you can detect
+  return data || { unavailable: true, message: "not available", heroId, season, platform };
 }
 
 /**
- * Convenience: fetch multiple heroes' stats at once.
+ * All hero stats for a season+platform
+ * - Reads heroes list to get IDs
+ * - Fetches each hero’s stats file (limited concurrency)
+ * - If a file is missing (e.g. season 3.5 right now), returns {unavailable:true} for that hero
  */
-export async function fetchManyHeroStats({
-  heroIds = [],
-  device = "pc",
-  season = CURRENT_SEASON,
-  current = true,
-} = {}) {
-  const jobs = heroIds.map((id) =>
-    fetchHeroStats({ heroId: id, device, season, current }).then((data) => ({
-      heroId: id,
-      data,
-    }))
-  );
-  return Promise.allSettled(jobs).then((results) =>
-    results
-      .filter((r) => r.status === "fulfilled")
-      .map((r) => r.value)
-  );
-}
+export async function getAllHeroStats({ season = "3.5", platform = "pc", concurrency = 8 } = {}) {
+  const heroes = await getHeroes();
+  const heroIds = heroes.map(h => h.id).filter(Boolean);
 
-// ---------- Section helpers for your new homepage ----------
-export async function getHomeSections({
-  device = "pc",
-  season = CURRENT_SEASON,
-  current = true,
-} = {}) {
-  // Heroes, Skins, Maps, Leaderboards (top players)
-  const [heroes, maps, players] = await Promise.all([
-    getHeroesMeta(),
-    getMapsMeta(),
-    fetchPlayerLeaderboard({ device, season, current }),
-  ]);
+  const stats = await mapWithConcurrency(heroIds, concurrency, async (id) => {
+    const one = await getHeroStatsForHero({ heroId: id, season, platform });
+    // Normalize by attaching hero meta for easy rendering
+    const meta = heroes.find(h => h.id === id) || { id };
+    return { hero: meta, stats: one };
+  });
 
   return {
-    heroes, // from data/heroes/heroes.json
-    maps, // from data/maps/maps.json
-    // Skins: you only have images in images/costumes/* — no manifest yet.
-    // You can wire a manifest later; for now return empty list.
-    skins: [],
-    leaderboards: players,
+    season,
+    platform,
+    items: stats,
   };
+}
+
+// --- convenience for navbar cards ---
+
+export async function getHomeTopData({ season = "3.5", platform = "pc" } = {}) {
+  const [heroes, maps, patchNotes, playerLb] = await Promise.all([
+    getHeroes(),
+    getMaps(),
+    getPatchNotes(),
+    getPlayerLeaderboard({ season, platform }),
+  ]);
+  return { heroes, maps, patchNotes, playerLeaderboard: playerLb };
 }

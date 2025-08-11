@@ -1,62 +1,77 @@
-// pages/index.js
-import Link from "next/link";
-import { useRouter } from "next/router";
+// frontend/pages/index.js
 import { useState } from "react";
-import AllHeroStatsGrid from "@/components/AllHeroStatsGrid";
+import Head from "next/head";
+import Link from "next/link";
 
-function QuickCard({ href, title, desc }) {
-  return (
-    <Link href={href} className="block">
-      <div className="rounded-lg bg-gray-900 hover:bg-gray-800 transition p-4 shadow border border-gray-800">
-        <div className="text-base font-semibold text-white">{title}</div>
-        <div className="text-sm text-gray-400 mt-1">{desc}</div>
-      </div>
-    </Link>
-  );
-}
+import Navbar from "../components/Navbar";
+import PlayerSearch from "../components/PlayerSearch";
+import SeasonPlatformPicker from "../components/SeasonPlatformPicker";
+import HeroStatsCard from "../components/HeroStatsCard";
 
 export default function Home() {
-  const router = useRouter();
-  const [query, setQuery] = useState("");
-
-  const onSearch = (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    router.push(`/player?name=${encodeURIComponent(query.trim())}`);
-  };
+  // Defaults per your setup
+  const [season, setSeason] = useState("3.5"); // current season
+  const [platform, setPlatform] = useState("pc"); // pc | psn | xbox
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 text-white">
-      {/* Top quick nav */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <QuickCard href="/heroes"       title="Heroes"       desc="Browse all heroes & abilities" />
-        <QuickCard href="/skins"        title="Skins"        desc="Cosmetics and variants" />
-        <QuickCard href="/maps"         title="Maps"         desc="Pool, lanes & rotations" />
-        <QuickCard href="/leaderboards" title="Leaderboards" desc="Top players by platform" />
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <Head>
+        <title>RivalsMeta — Marvel Rivals Tracker</title>
+        <meta name="description" content="Marvel Rivals stats, leaderboards, maps, heroes and more." />
+      </Head>
 
-      {/* Player search */}
-      <div className="mt-6">
-        <form onSubmit={onSearch} className="flex gap-2">
-          <input
-            className="flex-1 rounded bg-gray-900 border border-gray-800 px-3 py-2 outline-none focus:border-gray-600"
-            placeholder="Search player (PC/PSN/XBOX username)"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button
-            type="submit"
-            className="rounded bg-blue-600 hover:bg-blue-500 px-4 py-2 font-semibold"
+      <Navbar />
+
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Quick links row */}
+        <section aria-label="Primary sections" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Link
+            href="/heroes"
+            className="rounded-lg bg-gray-800 hover:bg-gray-700 transition px-4 py-3 text-center font-medium"
           >
-            Search
-          </button>
-        </form>
-      </div>
+            Heroes
+          </Link>
+          <Link
+            href="/skins"
+            className="rounded-lg bg-gray-800 hover:bg-gray-700 transition px-4 py-3 text-center font-medium"
+          >
+            Skins
+          </Link>
+          <Link
+            href="/maps"
+            className="rounded-lg bg-gray-800 hover:bg-gray-700 transition px-4 py-3 text-center font-medium"
+          >
+            Maps
+          </Link>
+          <Link
+            href="/leaderboards"
+            className="rounded-lg bg-gray-800 hover:bg-gray-700 transition px-4 py-3 text-center font-medium"
+          >
+            Leaderboards
+          </Link>
+        </section>
 
-      {/* All heroes stats grid */}
-      <div className="mt-6">
-        <AllHeroStatsGrid />
-      </div>
+        {/* Search + season/platform picker */}
+        <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="w-full sm:max-w-xl">
+            <PlayerSearch />
+          </div>
+
+          <div className="w-full sm:w-auto">
+            <SeasonPlatformPicker
+              season={season}
+              platform={platform}
+              onSeasonChange={setSeason}
+              onPlatformChange={setPlatform}
+            />
+          </div>
+        </section>
+
+        {/* Hero stats card (10 per page handled inside the card) */}
+        <section>
+          <HeroStatsCard season={season} platform={platform} />
+        </section>
+      </main>
     </div>
   );
 }
